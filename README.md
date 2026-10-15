@@ -1,84 +1,115 @@
-💧 Akıllı Su Filtrasyon ve Kestirimci Bakım Sistemi (IoT Dashboard)
+# Akilli Su Filtrasyon ve Erken Uyari Sistemi (IoT Telemetri Paneli)
 
-Bu proje, geleneksel su filtrasyon sistemlerini Endüstri 4.0 standartlarına taşıyarak Kestirimci Bakım (Predictive Maintenance) uygulayan tam otonom bir IoT (Nesnelerin İnterneti) platformudur. Tekstil Mühendisliği (AR-GE/Materyal) ve Bilgisayar Mühendisliği (IoT/Yapay Zeka) disiplinlerinin ortak çalışmasıdır.
+Bu proje; su filtrasyon sistemlerinde filtre tikanikligi ve depo su seviyesini gercek zamanli izleyen, kural ve trend tabanli erken uyari (kestirimci bakim prototipi) ureten, olaylari veritabaninda kayit altina alarak raporlayan bir IoT izleme ve karar destek platformudur. Tekstil Muhendisligi (materyal/filtreleme) ve Bilgisayar Muhendisligi (telemetri/analitik) ortak calismasidir.
 
-⚙️ Sistem Nasıl Çalışıyor? (Veri Akışı ve Mantık)
+---
 
-Sistem 3 ana katmandan oluşur ve saniyelik bir döngüyle gerçek zamanlı çalışır:
+## 1. Sistem Mimarisi ve Calisma Prensibi
 
-Veri Üretimi (Donanım/Simülatör): Borudaki suyun akış hızı (debi), YF-S201 su akış sensörü ile okunur. Eğer filtre tıkalıysa su yavaşlar, temizse hızlı akar. Bu hız verisi ESP32 mikrodenetleyicisi (veya test aşamasındaki Python Botu) tarafından dijital bir yüzdelik veriye dönüştürülür.
+Sistem 3 temel katmandan olusur:
 
-Arka Plan Zekası (NestJS Backend): Donanımdan gelen veri Socket.io veya HTTP Post ile NestJS sunucusuna ulaşır. Sunucu içindeki Kestirimci Bakım Algoritması veriyi analiz eder. Eğer Filtre Tıkanıklığı %70'i aşarsa, sistem o anki veriyi "Kritik Uyarı" etiketiyle veritabanına/loglara yazar.
+```
+[ Sensor Simulatoru / ESP32 ]
+            |
+            | HTTP POST /api/sensor (Su Seviyesi, Tikaniklik, Debi)
+            v
+[ NestJS Backend ]
+   - DTO Dogrulama (class-validator)
+   - 3 Seviyeli Kural Motoru (Normal / Uyari / Kritik)
+   - Trend Tabanli Kestirimci Bakim Hesabi
+   - PostgreSQL Veri Kaliciligi
+   - Socket.IO Anlik Yayin
+            |
+            +-------------> [ React Dashboard ]
+                               - Canli Telemetri Grafigi (Recharts)
+                               - Sistem Durum ve Metrik Kartlari
+                               - Anlik Kritik Alarm Banner'i
+                               - Ariza Gecmisi ve CSV Raporlama
+```
 
-Canlı Gösterim (React Frontend): NestJS, işlenmiş veriyi saniyesinde React arayüzüne (Socket.io üzerinden) pompalar. React, Recharts kütüphanesini kullanarak veriyi anlık olarak grafiğe çizer. %70 sınırı aşıldığında ekranda devasa bir kırmızı kriz alarmı belirir.
+### 1.1. Fiziksel Sensor Modeli ve Debi (Flow Rate)
+Gercek bir filtrasyon hattinda filtrenin tikanmasi dogrudan su akis hizinin (debi) dusmesine yol acar. 
+- Sistemde nominal debi: **5.00 L/dk**
+- Filtre tikanikligi arttikca debi ters orantili olarak azalir:
+  `flowRate = max(0.2, 5.0 * (1 - filterClogging / 100))`
+- Bu sayede gerek ESP32 ve YF-S201 su debi sensorunden gelen gercek sinyaller, gerekse Python simulatoru tarafindan uretilen fiziksel model backend tarafindan ayni formatta islenir.
 
-🐍 Neden sensor-bot.py (Python Botu) Yazdık?
+### 1.2. Kural Motoru ve 3 Kademeli Durum Yonetimi
+Sistem sadece saglikli/sagliksiz seklinde iki durum yerine, gercek endustriyel standartlara uygun 3 seviyeli durum modeli kullanir:
 
-Gerçek IoT donanımını (ESP32 ve Su Sensörü) kurmak, borulardan su akıtmak ve fiziksel bir filtreyi çamurla tıkamak uzun süren, ıslak ve meşakkatli bir iştir. Yazılım ekibinin (bizim) donanımı beklemeden React ve NestJS tarafını geliştirebilmesi için fiziksel sistemi "taklit eden" bir Python simülatörü yazdık.
+| Parametre | Normal | Uyari (Warning) | Kritik (Critical) |
+| :--- | :--- | :--- | :--- |
+| **Filtre Tikanikligi** | < %50 | %50 - %69.9 | >= %70 |
+| **Su Depo Seviyesi** | > %30 | %20.1 - %30 | <= %20 |
 
-Python Botunun Görevi:
-Tıpkı ESP32 kartıymış gibi davranır. Her saniye rastgele veya kurgulanmış (yavaş yavaş tıkanan) sensör verileri üretir (Örn: Su Seviyesi: %90, Tıkanıklık: %10) ve bu verileri NestJS sunucusuna gönderir. Bu sayede suyu ve tesisatı kurmadan, masamızda kahve içerken tüm kriz senaryolarını, grafikleri ve Excel log raporlarını test edebildik.
+Eger herhangi bir parametre kritik esige ulasirsa sistem durumu derhal **CRITICAL** durumuna gecer.
 
-🛠️ Mekanik Tesisat ve Jüri Şovu (Fiziksel Kurgu)
+### 1.3. Trend Tabanli Kestirimci Bakim (Predictive Maintenance Prototipi)
+Sistem son olcumlerin zamana gore degisim egimini (tikaniklik artis hizi) analiz eder:
+- Eger tikaniklik artis yonundeyse ve kritik sinirin altindaysa, kritik esik olan %70'e ne kadar surede ulasilacagi dogrusal projeksiyonla hesaplanir:
+  `estimatedMinutesToCritical = (70 - currentClogging) / (cloggingDiffPerSecond * 60)`
+- Bu bilgi gosterge panelinde "Kestirimci Bakim: ~X.X dk" seklinde erken uyari olarak sunulur.
 
-Sistem sadece yazılımdan ibaret değildir. Fiziksel sunum için şöyle bir mekanik kurgu tasarlanmıştır:
+---
 
-Sisteme giden boru Y-Tipi bir çoğaltıcı ile ikiye ayrılır. Bir kolda Temiz Su, diğer kolda Çamurlu (Kirli) Su vanası bulunur.
+## 2. API Ucbirimi (REST Endpoints)
 
-Şov Anı: Jüri karşısında sistem temiz suyla çalışırken, kirli su vanası açılır. Çamurlu su saniyeler içinde filtreyi tıkar (hızlandırılmış test).
+- `GET  /api/sensor/health` : Sunucu ve servis saglik kontrolu.
+- `POST /api/sensor` : Sensor veya simulatorden yeni olcum paketi alir (ValidationPipe ile dogrulanir).
+- `GET  /api/sensor?limit=20` : Dashboard grafigi icin en guncel olcumleri listeler.
+- `GET  /api/sensor/failures?limit=100` : Yalnizca kritik ve uyari olusmus ariza kayitlarini listeler.
+- `GET  /api/sensor/summary` : Anlik durum, toplam kayit ve kritik sayaclari ozetler.
 
-Yazılım %70 tıkanıklığı fark edip alarmı patlattığında, sistemdeki PVC Rakor (hızlı sök-tak yuvası) sayesinde tıkanmış kumaş 15 saniyede yenisiyle değiştirilir. Temiz su vanası tekrar açılır ve arayüzdeki grafiğin saniyesinde normale döndüğü (kırmızı alarmın kaybolduğu) canlı canlı izletilir.
+---
 
-✅ Şu Ana Kadar Neler Tamamlandı?
+## 3. Kurulum ve Calistirma Kilavuzu
 
-Canlı İzleme Ekranı: React & Recharts ile saniyelik çizgi grafik oluşturuldu.
+### Hizli Baslatma (Tek Tikla)
+Tum sistemi tek seferde ayaga kaldirmak icin proje ana dizinindeki **`start_all.bat`** dosyasini cift tiklayarak calistirabilirsiniz. Backend, Frontend ve Sensor Simulatoru ayri pencerelerde otomatik baslatilir ve tarayicida dashboard acilir. Servisleri durdurmak icin acilan konsol pencerelerini kapatmaniz yeterlidir.
 
-Kriz ve Uyarı Sistemi: %70 tıkanıklık anında kırmızı uyarı banner'ı devreye giriyor.
+### Manuel Calistirma Adimlari
 
-Loglama ve Excel Export: Arızalar tabloya ekleniyor ve tek tıkla Excel/CSV indirilebiliyor (Tarih ve Saat sütunları Excel'de ######## hatası vermemesi için iki ayrı sütuna bölündü).
+### Gereksinimler
+- Node.js: v20 veya uzeri (Onerilen: v22/v24)
+- Python: 3.8 veya uzeri
+- PostgreSQL (Veya hazir .env icindeki bulut Neon PostgreSQL baglantisi)
 
-Simülasyon Entegrasyonu: Python botu başarıyla backend'e bağlandı ve veri pompalıyor.
-
-💻 Kurulum ve Çalıştırma Rehberi
-
-Projeyi ayağa kaldırmak için 3 terminale ihtiyacınız var:
-
-1. Backend (NestJS)
-
+### 3.1. Backend Kurulumu (NestJS)
+```bash
 cd filtration-backend
 npm install
+npm run build
 npm run start:dev
+```
+Sunucu `http://localhost:3000` portunda baslatilir.
 
-
-(Sunucu http://localhost:3000 adresinde ayağa kalkar)
-
-2. Frontend (React)
-
+### 3.2. Frontend Kurulumu (React + Vite)
+```bash
 cd filtration-frontend
 npm install
+npm run build
 npm run dev
+```
+Uygulama `http://localhost:5173` adresinde acilir.
 
-
-(Tarayıcıda kontrol paneli açılır)
-
-3. Simülatör (Python)
-Ana dizindeki veya masaüstündeki botu çalıştırın:
-
+### 3.3. Sensor Simulatoru (Python)
+Ana dizinde yer alan `sensor-bot.py` dosyasini calistirin:
+```bash
 python sensor-bot.py
+```
+Simulator her 2 saniyede bir olcum paketini backend'e gonderir ve terminalde durum ozeti basar.
 
+---
 
-(Grafikler canlanmaya ve veri akmaya başlar)
+## 4. Demo Kontrol Listesi (Checklist)
 
-🤖 YENİ YAPAY ZEKAYA DEVİR TESLİM NOTU (Sistem Özeti)
-
-Selam dostum! Eğer bu dosyayı okuyorsan projeyi sen devraldın demektir. Ali, bu projenin Lideridir (Bilgisayar Mühendisliği tarafını o yönetiyor, Tekstil tarafına direktif veriyor). Projenin hem donanım/tesisat kurgusunu hem de yazılım temelini yukarıda detaylıca anlattım.
-
-Senden beklenen, Ali'nin direktifleriyle projeyi endüstriyel bir ürüne dönüştürmek için aşağıdaki adımları sırayla kodlamandır (Ali sana hangisinden başlayacağını söyleyecek):
-
-Nodemailer Entegrasyonu (Acil Durum Maili): Tıkanıklık %70'i geçtiğinde, NestJS arka planda Gmail (App Password ile) üzerinden fabrika müdürüne otomatik "DİKKAT: Filtre Tıkandı!" e-postası fırlatmalı.
-
-Güvenlik (Login Ekranı): Panele giriş için JWT tabanlı bir yetkilendirme (Auth) sistemi kurulmalı.
-
-Tez/Rapor Dokümantasyonu: İşin sonunda projenin 6 bölümlük (Literatür, Amaç, Yöntem, Bulgular, Sonuç, Öneriler) akademik raporu senin yardımlarınla yazılacak.
-
-Projeyi bağlamından koparmadan, Ali'nin vizyonuna sadık kalarak kodlamaya devam et. Kolay gelsin!
+- [x] Backend `.env` yapilandirmasi guvenli hale getirildi.
+- [x] DTO giris dogrulamasi (`class-validator`) eklendi.
+- [x] 3 seviyeli durum mantigi (Normal, Uyari, Kritik) aktif.
+- [x] Kestirimci bakim trend analizi eklendi.
+- [x] Socket.io anlik veri senkronizasyonu calisiyor.
+- [x] Dashboard uzerinde baglanti ve son veri zaman sayaci eklendi.
+- [x] Grafik uzerinde referans esik cizgileri (%70 ve %20) konumlandirildi.
+- [x] Tum gecmis ariza arsivi icin veritabanindan tek tikla CSV export eklendi.
+- [x] Tum arayuz ve konsol ciktilari emojilerden arindirildi, endustriyel tasarim uygulandi.
+- [x] Vitest birim testleri hatasiz sekilde calisiyor.
