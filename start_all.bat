@@ -1,8 +1,8 @@
 @echo off
-title Akilli Su Filtrasyon Sistemi - Servisleri Baslat
+title Akilli Su Filtrasyon - Simulatorsuz Baslat
 echo ====================================================================
 echo Akilli Su Filtrasyon ve Erken Uyari Sistemi
-echo Backend ve Frontend baslatiliyor...
+echo Backend + Frontend baslatiliyor (Simulatorsuz)
 echo (Servisleri durdurmak icin acilan konsol pencerelerini kapatabilirsiniz)
 echo ====================================================================
 
@@ -29,4 +29,5 @@ echo ====================================================================
 echo Servisler baslatildi.
 echo - Backend API : http://localhost:3000
 echo - Web Paneli  : http://localhost:5173
+echo - Simulatör   : Calistirilmadi (gercek sensor icin)
 echo ====================================================================
