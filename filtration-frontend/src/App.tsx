@@ -53,7 +53,6 @@ function App() {
   const [filterType, setFilterType] = useState<'ALL' | 'CRITICAL' | 'WARNING'>('ALL');
   const [isLoadingAllFailures, setIsLoadingAllFailures] = useState(false);
 
-  // 1. Ilk verileri REST API uzerinden yukle
   const loadInitialData = async () => {
     try {
       const [historyRes, failuresRes] = await Promise.all([
@@ -62,7 +61,6 @@ function App() {
       ]);
 
       setIsBackendConnected(true);
-      // Gelen veriyi kronolojik siraya cevir (grafik icin)
       const sortedHistory = [...historyRes.data].reverse();
       setData(sortedHistory);
       setFailures(failuresRes.data);
@@ -71,7 +69,7 @@ function App() {
         setLastDataTimestamp(Date.now());
       }
     } catch (err) {
-      console.error('Backend baglanti hatasi:', err);
+      console.error('Backend bağlantı hatası:', err);
       setIsBackendConnected(false);
     }
   };
@@ -79,7 +77,6 @@ function App() {
   useEffect(() => {
     loadInitialData();
 
-    // 2. Socket.IO Baglantisi
     const socket: Socket = io(API_BASE_URL, {
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
@@ -98,13 +95,11 @@ function App() {
       setIsBackendConnected(true);
       setLastDataTimestamp(Date.now());
 
-      // Grafik verisini guncelle (son 20 kayit)
       setData((prev) => {
         const next = [...prev, yeniVeri];
         return next.slice(-20);
       });
 
-      // Eger kritik veya uyari ise arizalar listesine ekle
       const isCriticalOrWarning =
         yeniVeri.status === 'CRITICAL' ||
         yeniVeri.status === 'WARNING' ||
@@ -120,7 +115,6 @@ function App() {
     };
   }, []);
 
-  // 3. Son veriden bu yana gecen saniye sayaci
   useEffect(() => {
     const interval = setInterval(() => {
       if (lastDataTimestamp) {
@@ -133,7 +127,6 @@ function App() {
 
   const latest = data.length > 0 ? data[data.length - 1] : null;
 
-  // Mevcut sistem durumunu tespit et
   const currentStatus = useMemo(() => {
     if (!latest) return 'NORMAL';
     if (latest.status) return latest.status;
@@ -142,7 +135,6 @@ function App() {
     return 'NORMAL';
   }, [latest]);
 
-  // Tablo filtreleme
   const filteredFailures = useMemo(() => {
     if (filterType === 'ALL') return failures;
     if (filterType === 'CRITICAL') {
@@ -154,25 +146,24 @@ function App() {
     return failures;
   }, [failures, filterType]);
 
-  // CSV Indirme Mantigi
   const exportToCsv = (records: SensorData[], filenamePrefix: string) => {
     if (!records || records.length === 0) {
-      alert('Disa aktarilacak ariza kaydi bulunmuyor.');
+      alert('Dışa aktarılacak arıza kaydı bulunmuyor.');
       return;
     }
 
-    let csvContent = '\uFEFFTarih;Saat;Cihaz;Su Seviyesi (%);Filtre Tikanikligi (%);Debi (L/dk);Durum;Olay Aciklamasi\n';
+    let csvContent = '\uFEFFTarih;Saat;Cihaz;Su Seviyesi (%);Filtre Tıkanıklığı (%);Debi (L/dk);Durum;Olay Açıklaması\n';
 
     records.forEach((row) => {
       const d = new Date(row.recordedAt);
       const dateStr = d.toLocaleDateString('tr-TR');
       const timeStr = d.toLocaleTimeString('tr-TR');
-      const device = row.deviceId || 'SIM-UNIT-01';
+      const device = row.deviceId || 'SENSOR-01';
       const statusLabel =
         row.status === 'CRITICAL' || !row.isSystemHealthy
           ? 'Kritik Durum'
           : row.status === 'WARNING'
-          ? 'Uyari'
+          ? 'Uyarı'
           : 'Normal';
       const reason = (row.alertReason || 'Belirtilmedi').replace(/;/g, ',');
       const flow = row.flowRate !== undefined && row.flowRate !== null ? row.flowRate : '-';
@@ -194,52 +185,46 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Veritabanindaki tum ariza arsivini backend'den cekerek indir
   const handleDownloadFullReport = async () => {
     try {
       setIsLoadingAllFailures(true);
       const res = await axios.get<SensorData[]>(`${API_BASE_URL}/api/sensor/failures?limit=500`);
-      exportToCsv(res.data, 'Tum_Filtrasyon_Ariza_Arsivi');
+      exportToCsv(res.data, 'Filtrasyon_Ariza_Arsivi');
     } catch (err) {
-      console.error('Arsiv indirilirken hata:', err);
-      alert('Rapor veritabanindan cekilirken baglanti hatasi olustu.');
+      console.error('Arşiv indirilirken hata:', err);
+      alert('Rapor veritabanından çekilirken bağlantı hatası oluştu.');
     } finally {
       setIsLoadingAllFailures(false);
     }
   };
 
-  // Anlik goruntulenen tabloyu indir
   const handleDownloadCurrentView = () => {
     exportToCsv(filteredFailures, 'Filtrasyon_Goruntulenen_Olaylar');
   };
 
   return (
     <div className="dashboard-container">
-      {/* HEADER BOLUMU */}
+      {/* HEADER */}
       <header className="dashboard-header">
         <div className="header-title-group">
-          <h1>Akilli Su Filtrasyon Izleme ve Erken Uyari Sistemi</h1>
-          <p>IoT Telemetri Akisi, Kural Tabanli Guvenlik ve Kestirimci Bakim Paneli</p>
+          <h1>Akıllı Su Filtrasyon İzleme ve Erken Uyarı Sistemi</h1>
+          <p>IoT Telemetri Akışı, Kural Tabanlı Güvenlik ve Kestirimci Bakım Paneli</p>
         </div>
 
         <div className="header-status-group">
-          {/* Backend Durumu */}
           <div
             className={`status-badge ${
               isBackendConnected ? 'badge-connected' : 'badge-disconnected'
             }`}
           >
             <span
-              className={`pulse-dot ${
-                isBackendConnected ? 'online' : 'offline'
-              }`}
+              className={`pulse-dot ${isBackendConnected ? 'online' : 'offline'}`}
             />
             <span>
-              Backend: {isBackendConnected ? 'Cevrimici' : 'Baglanti Yok'}
+              Backend: {isBackendConnected ? 'Çevrimiçi' : 'Bağlantı Yok'}
             </span>
           </div>
 
-          {/* Socket.IO Durumu */}
           <div
             className={`status-badge ${
               isSocketConnected ? 'badge-connected' : 'badge-disconnected'
@@ -247,38 +232,36 @@ function App() {
           >
             <Activity size={14} />
             <span>
-              Telemetri: {isSocketConnected ? 'Canli Akis Aktif' : 'Bekleniyor'}
+              Telemetri: {isSocketConnected ? 'Canlı Akış Aktif' : 'Bekleniyor'}
             </span>
           </div>
 
-          {/* Son Veri Sayaci */}
           <div className="status-badge badge-neutral">
             <Clock size={14} />
             <span>
-              Son Olcum:{' '}
+              Son Ölçüm:{' '}
               {secondsAgo !== null
                 ? secondsAgo <= 1
-                  ? 'Simdi'
-                  : `${secondsAgo} sn once`
+                  ? 'Şimdi'
+                  : `${secondsAgo} sn önce`
                 : 'Veri bekleniyor'}
             </span>
           </div>
 
-          {/* Yenile Butonu */}
           <button
             onClick={loadInitialData}
             className="btn btn-outline"
             style={{ padding: '0.35rem 0.6rem' }}
-            title="Verileri ve baglantiyi yenile"
+            title="Verileri ve bağlantıyı yenile"
           >
             <RefreshCw size={14} />
           </button>
         </div>
       </header>
 
-      {/* METRIK VE DURUM KARTLARI */}
+      {/* METRİK KARTLARI */}
       <section className="metrics-grid">
-        {/* KART 1: SISTEM DURUMU */}
+        {/* KART 1: SİSTEM DURUMU */}
         <div className="metric-card">
           <div className="metric-card-header">
             <span className="metric-title">Sistem Durumu</span>
@@ -308,23 +291,23 @@ function App() {
               {currentStatus === 'CRITICAL'
                 ? 'Kritik Durum'
                 : currentStatus === 'WARNING'
-                ? 'Dikkat / Uyari'
-                : 'Normal Calisma'}
+                ? 'Dikkat / Uyarı'
+                : 'Normal Çalışma'}
             </span>
           </div>
           <div className="metric-subtext">
             {currentStatus === 'CRITICAL'
-              ? 'Acil bakim veya filtre degisimi gerekiyor'
+              ? 'Acil bakım veya filtre değişimi gerekiyor'
               : currentStatus === 'WARNING'
-              ? 'Esik yaklasimi, filtre kontrol edilmeli'
-              : 'Tum parametreler guvenli aralikta'}
+              ? 'Eşik yaklaşımı, filtre kontrol edilmeli'
+              : 'Tüm parametreler güvenli aralıkta'}
           </div>
         </div>
 
-        {/* KART 2: FILTRE TIKANIKLIGI */}
+        {/* KART 2: FİLTRE TIKANIKLIĞI */}
         <div className="metric-card">
           <div className="metric-card-header">
-            <span className="metric-title">Filtre Tikanikligi</span>
+            <span className="metric-title">Filtre Tıkanıklığı</span>
             <div className="metric-icon-wrap">
               <Filter size={18} />
             </div>
@@ -333,7 +316,7 @@ function App() {
             <span className="metric-number">
               %{latest ? Number(latest.filterClogging).toFixed(1) : '0.0'}
             </span>
-            <span className="metric-unit">Esik: %70</span>
+            <span className="metric-unit">Eşik: %70</span>
           </div>
           <div className="progress-container">
             <div
@@ -351,14 +334,14 @@ function App() {
           </div>
           <div className="metric-subtext">
             {(latest?.filterClogging ?? 0) >= 70
-              ? 'Kritik sinir asildi (%70 uzeri)'
+              ? 'Kritik sınır aşıldı (%70 üzeri)'
               : (latest?.filterClogging ?? 0) >= 50
-              ? 'Tikanma hizi artiyor'
-              : 'Filtre gecirgenligi optimum'}
+              ? 'Tıkanma hızı artıyor'
+              : 'Filtre geçirgenliği optimum'}
           </div>
         </div>
 
-        {/* KART 3: SU SEVIYESI */}
+        {/* KART 3: SU SEVİYESİ */}
         <div className="metric-card">
           <div className="metric-card-header">
             <span className="metric-title">Su Seviyesi</span>
@@ -388,17 +371,17 @@ function App() {
           </div>
           <div className="metric-subtext">
             {(latest?.waterLevel ?? 100) <= 20
-              ? 'Depo seviyesi yetersiz, besleme yapiniz'
+              ? 'Depo seviyesi yetersiz, besleme yapınız'
               : (latest?.waterLevel ?? 100) <= 30
-              ? 'Depo seviyesi dusuk'
+              ? 'Depo seviyesi düşük'
               : 'Yeterli rezerv mevcut'}
           </div>
         </div>
 
-        {/* KART 4: SU AKIS DEBISI (FIZIKSEL SENSOR MODELI) */}
+        {/* KART 4: AKIŞ DEBİSİ */}
         <div className="metric-card">
           <div className="metric-card-header">
-            <span className="metric-title">Su Akis Debisi</span>
+            <span className="metric-title">Su Akış Debisi</span>
             <div className="metric-icon-wrap">
               <Gauge size={18} />
             </div>
@@ -412,14 +395,14 @@ function App() {
             <span className="metric-unit">L/dk</span>
           </div>
           <div className="metric-subtext" style={{ marginTop: '0.4rem' }}>
-            Nominal debi: 5.00 L/dk (Akis hizi filtre tikanikligi ile ters orantilidir)
+            Nominal debi: 5.00 L/dk — Akış hızı filtre tıkanıklığı ile ters orantılıdır
           </div>
         </div>
 
-        {/* KART 5: KESTIRIMCI BAKIM TAHMINI */}
+        {/* KART 5: KEStirimci BAKIM */}
         <div className="metric-card">
           <div className="metric-card-header">
-            <span className="metric-title">Kestirimci Bakim</span>
+            <span className="metric-title">Kestirimci Bakım</span>
             <div className="metric-icon-wrap">
               <TrendingUp size={18} />
             </div>
@@ -430,7 +413,7 @@ function App() {
               style={{ fontSize: '1.45rem', color: '#0f172a' }}
             >
               {latest && latest.filterClogging >= 70
-                ? 'Bakim Gerekli'
+                ? 'Bakım Gerekli'
                 : latest?.estimatedMinutesToCritical !== null &&
                   latest?.estimatedMinutesToCritical !== undefined
                 ? `~${latest.estimatedMinutesToCritical} dk`
@@ -439,15 +422,15 @@ function App() {
           </div>
           <div className="metric-subtext">
             {latest && latest.filterClogging >= 70
-              ? 'Filtre su anda tikanik durumda'
+              ? 'Filtre şu anda tıkanık durumda'
               : latest?.estimatedMinutesToCritical
-              ? 'Mevcut artis ivmesiyle %70 esigine tahmini varis suresi'
-              : 'Son olcumlerde kritik yukselis ivmesi tespit edilmedi'}
+              ? 'Mevcut artış ivmesiyle %70 eşiğine tahmini varış süresi'
+              : 'Son ölçümlerde kritik yükseliş ivmesi tespit edilmedi'}
           </div>
         </div>
       </section>
 
-      {/* KRITIK / UYARI BILDIRIM PANELI */}
+      {/* KRİTİK / UYARI BİLDİRİM PANELİ */}
       {latest && (currentStatus === 'CRITICAL' || currentStatus === 'WARNING') && (
         <section
           className={`alert-banner ${
@@ -464,32 +447,32 @@ function App() {
           <div className="alert-content">
             <h4>
               {currentStatus === 'CRITICAL'
-                ? 'Kritik Sistem Uyarisi - Islemsel Mudahale Gerekli'
-                : 'Dikkat Uyarisi - Parametre Degisimi Tespit Edildi'}
+                ? 'Kritik Sistem Uyarısı — İşlemsel Müdahale Gerekli'
+                : 'Dikkat Uyarısı — Parametre Değişimi Tespit Edildi'}
             </h4>
             <p>
               {latest.alertReason ||
                 (currentStatus === 'CRITICAL'
-                  ? 'Filtre tikanikligi veya su seviyesi guvenli tolerans disina cikti.'
-                  : 'Filtre tikanikligi artis gosteriyor.')}
+                  ? 'Filtre tıkanıklığı veya su seviyesi güvenli tolerans dışına çıktı.'
+                  : 'Filtre tıkanıklığı artış gösteriyor.')}
             </p>
           </div>
         </section>
       )}
 
-      {/* CANLI TELEMETRI GRAFIGI */}
+      {/* CANLI TELEMETRİ GRAFİĞİ */}
       <section className="chart-card">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Canli Telemetri Grafigi</h2>
+            <h2 className="section-title">Canlı Telemetri Grafiği</h2>
             <p className="section-subtitle">
-              Son 20 olcumun su seviyesi ve filtre tikaniklik degisim egrisi
+              Son 20 ölçümün su seviyesi ve filtre tıkanıklık değişim eğrisi
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <span className="status-badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-              <Cpu size={12} /> Cihaz: {latest?.deviceId || 'SIM-UNIT-01'}
+              <Cpu size={12} /> Cihaz: {latest?.deviceId || 'SENSOR-01'}
             </span>
           </div>
         </div>
@@ -518,7 +501,7 @@ function App() {
                 stroke="#64748b"
                 tick={{ fontSize: 12 }}
                 label={{
-                  value: 'Yuzde (%)',
+                  value: 'Yüzde (%)',
                   angle: -90,
                   position: 'insideLeft',
                   style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 },
@@ -550,11 +533,10 @@ function App() {
                 wrapperStyle={{ paddingBottom: '12px', fontSize: '0.85rem' }}
               />
 
-              {/* Referans cizgileri (Hoca demosunda esik analizi gosterimi icin) */}
               <ReferenceLine
                 y={70}
                 label={{
-                  value: 'Kritik Tikaniklik Esigi (%70)',
+                  value: 'Kritik Tıkanıklık Eşiği (%70)',
                   fill: '#ef4444',
                   fontSize: 11,
                   position: 'top',
@@ -565,7 +547,7 @@ function App() {
               <ReferenceLine
                 y={20}
                 label={{
-                  value: 'Kritik Su Esigi (%20)',
+                  value: 'Kritik Su Eşiği (%20)',
                   fill: '#3b82f6',
                   fontSize: 11,
                   position: 'bottom',
@@ -587,7 +569,7 @@ function App() {
               <Line
                 type="monotone"
                 dataKey="filterClogging"
-                name="Filtre Tikanikligi (%)"
+                name="Filtre Tıkanıklığı (%)"
                 stroke="#ef4444"
                 strokeWidth={2.5}
                 dot={{ r: 3 }}
@@ -599,62 +581,57 @@ function App() {
         </div>
       </section>
 
-      {/* GECMIS ARIZA VE OLAY KAYITLARI TABLOSU */}
+      {/* GEÇMİŞ ARIZA VE OLAY KAYITLARI */}
       <section className="table-card">
         <div className="section-header">
           <div>
-            <h2 className="section-title">Gecmis Ariza ve Olay Kayitlari</h2>
+            <h2 className="section-title">Geçmiş Arıza ve Olay Kayıtları</h2>
             <p className="section-subtitle">
-              Kritik esik asimlari, uyarilar ve filtre mudahale loglari
+              Kritik eşik aşımları, uyarılar ve filtre müdahale logları
             </p>
           </div>
 
           <div className="action-button-group">
-            {/* Filtre Duzeyleri */}
             <div style={{ display: 'flex', gap: '0.25rem', marginRight: '0.5rem' }}>
               <button
                 className={`btn-filter ${filterType === 'ALL' ? 'active' : ''}`}
                 onClick={() => setFilterType('ALL')}
               >
-                Tumu ({failures.length})
+                Tümü ({failures.length})
               </button>
               <button
                 className={`btn-filter ${filterType === 'CRITICAL' ? 'active' : ''}`}
                 onClick={() => setFilterType('CRITICAL')}
               >
                 Kritik (
-                {
-                  failures.filter((f) => f.status === 'CRITICAL' || !f.isSystemHealthy)
-                    .length
-                }
+                {failures.filter((f) => f.status === 'CRITICAL' || !f.isSystemHealthy).length}
                 )
               </button>
               <button
                 className={`btn-filter ${filterType === 'WARNING' ? 'active' : ''}`}
                 onClick={() => setFilterType('WARNING')}
               >
-                Uyari ({failures.filter((f) => f.status === 'WARNING').length})
+                Uyarı ({failures.filter((f) => f.status === 'WARNING').length})
               </button>
             </div>
 
-            {/* CSV Indir Butonlari */}
             <button
               onClick={handleDownloadCurrentView}
               className="btn btn-outline"
-              title="Yalnizca su an ekranda filtrelenen kayitlari CSV olarak indirir"
+              title="Yalnızca şu an ekranda görüntülenen kayıtları CSV olarak indirir"
             >
               <Download size={14} />
-              Goruntulenenleri Indir
+              Görüntülenenleri İndir
             </button>
 
             <button
               onClick={handleDownloadFullReport}
               disabled={isLoadingAllFailures}
               className="btn btn-primary"
-              title="Veritabanindaki tum ariza gecmisini ceker ve indirir"
+              title="Veritabanındaki tüm arıza geçmişini çeker ve indirir"
             >
               <Download size={14} />
-              {isLoadingAllFailures ? 'Hazirlaniyor...' : 'Tum Raporu Indir (Veritabani)'}
+              {isLoadingAllFailures ? 'Hazırlanıyor...' : 'Tüm Raporu İndir (Veritabanı)'}
             </button>
           </div>
         </div>
@@ -664,9 +641,9 @@ function App() {
             <div className="empty-icon-wrap">
               <CheckCircle2 size={24} />
             </div>
-            <h4>Kaydedilmis Ariza Bulunmuyor</h4>
+            <h4>Kaydedilmiş Arıza Bulunmuyor</h4>
             <p>
-              Secili filtreye uygun kritik durum veya sistem uyarisi kaydi yoktur.
+              Seçili filtreye uygun kritik durum veya sistem uyarısı kaydı yoktur.
             </p>
           </div>
         ) : (
@@ -678,10 +655,10 @@ function App() {
                   <th>Saat</th>
                   <th>Cihaz</th>
                   <th>Su Seviyesi</th>
-                  <th>Filtre Tikanikligi</th>
-                  <th>Akis Debisi</th>
+                  <th>Filtre Tıkanıklığı</th>
+                  <th>Akış Debisi</th>
                   <th>Durum</th>
-                  <th>Olay / Uyari Gerekcesi</th>
+                  <th>Olay / Uyarı Gerekçesi</th>
                 </tr>
               </thead>
               <tbody>
@@ -703,7 +680,7 @@ function App() {
                       </td>
                       <td>
                         <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                          {item.deviceId || 'SIM-UNIT-01'}
+                          {item.deviceId || 'SENSOR-01'}
                         </span>
                       </td>
                       <td style={{ fontWeight: 600, color: '#0284c7' }}>
@@ -715,11 +692,11 @@ function App() {
                       <td style={{ color: '#475569' }}>{flowDisplay}</td>
                       <td>
                         <span className={`tag ${isCrit ? 'tag-critical' : 'tag-warning'}`}>
-                          {isCrit ? 'Kritik Durum' : 'Uyari'}
+                          {isCrit ? 'Kritik Durum' : 'Uyarı'}
                         </span>
                       </td>
                       <td style={{ color: '#334155' }}>
-                        {item.alertReason || 'Esik degeri asildi'}
+                        {item.alertReason || 'Eşik değeri aşıldı'}
                       </td>
                     </tr>
                   );
@@ -733,10 +710,10 @@ function App() {
       {/* FOOTER */}
       <footer className="dashboard-footer">
         <div>
-          <span>Akilli Su Filtrasyon ve Erken Uyari Sistemi MVP Prototipi</span>
+          <span>Akıllı Su Filtrasyon ve Erken Uyarı Sistemi</span>
         </div>
         <div>
-          <span>Tekstil ve Bilgisayar Muhendisligi Disiplinlerarasi Bitirme Projesi</span>
+          <span>Tekstil ve Bilgisayar Mühendisliği Disiplinlerarası Bitirme Projesi</span>
         </div>
       </footer>
     </div>
