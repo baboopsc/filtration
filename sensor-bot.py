@@ -9,12 +9,28 @@ import time
 import random
 import requests
 
-# Backend API adresi ve fiziksel düzenek sabitleri
+# Backend API adresi ve fiziksel duzenek sabitleri
 URL = 'http://localhost:3000/api/sensor'
+HEALTH_URL = 'http://localhost:3000/api/sensor/health'
 DEVICE_ID = 'SIM-UNIT-01'
 TANK_CAPACITY_L = 5.0       # 5 litrelik besleme bidonu
 NOMINAL_FLOW_LPM = 5.0      # Temiz tekstil filtre referans debisi (L/dk)
 INTERVAL_SECONDS = 2        # Veri gonderim periyodu
+
+
+def wait_for_backend():
+    print(f"[BEKLENIYOR] Backend saglik kontrolu yapiliyor ({HEALTH_URL})...")
+    while True:
+        try:
+            res = requests.get(HEALTH_URL, timeout=2)
+            if res.status_code == 200:
+                print("[HAZIR] Backend servisi aktif. Veri gonderimi basliyor...\n")
+                return
+        except requests.exceptions.RequestException:
+            pass
+        print("[BEKLENIYOR] Backend servisinin hazir olmasi bekleniyor...")
+        time.sleep(2)
+
 
 # Baslangic degerleri
 remaining_liters = TANK_CAPACITY_L
@@ -23,6 +39,9 @@ filter_clogging = 0.0
 print(f"[BILGI] Sensor simulatoru baslatildi. Cihaz ID: {DEVICE_ID}")
 print(f"[BILGI] Fiziksel Model: {TANK_CAPACITY_L:.1f} L Besleme Bidonu | Nominal Debi: {NOMINAL_FLOW_LPM:.1f} L/dk")
 print(f"[BILGI] Hedef API: {URL}")
+
+wait_for_backend()
+
 print(f"[BILGI] Veri akisi {INTERVAL_SECONDS} saniyelik periyotlarla gonderiliyor...\n")
 
 step = 0
@@ -46,7 +65,7 @@ while True:
         round(NOMINAL_FLOW_LPM * (1.0 - (filter_clogging / 100.0)) + random.uniform(-0.08, 0.08), 2),
     )
 
-    # 5.0 L bidondan gecen debiye bagli kümülatif hacim dusumu
+    # 5.0 L bidondan gecen debiye bagli kumulatif hacim dusumu
     drained_liters = flow_rate * (INTERVAL_SECONDS / 60.0)
     remaining_liters = max(0.0, remaining_liters - drained_liters)
 

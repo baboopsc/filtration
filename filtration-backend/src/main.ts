@@ -28,4 +28,4 @@ async function bootstrap() {
   console.log(`[Filtration Backend] Sistem http://localhost:${port} portunda calisiyor.`);
 }
 
-bootstrap();
+void bootstrap();
