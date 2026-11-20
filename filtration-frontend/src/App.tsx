@@ -333,10 +333,11 @@ function App() {
             />
           </div>
           <div className="metric-subtext">
+            1/2" PVC Rakor Tekstil Filtre Yuvası —{' '}
             {(latest?.filterClogging ?? 0) >= 70
-              ? 'Kritik sınır aşıldı (%70 üzeri)'
+              ? 'Kritik kek oluşumu ve tıkanma (%70 üzeri)'
               : (latest?.filterClogging ?? 0) >= 50
-              ? 'Tıkanma hızı artıyor'
+              ? 'Gözenek tıkanması ve kek tabakası artıyor'
               : 'Filtre geçirgenliği optimum'}
           </div>
         </div>
@@ -370,11 +371,14 @@ function App() {
             />
           </div>
           <div className="metric-subtext">
+            5.0 L Besleme Bidonu — Kalan: ~
+            {(((latest ? Number(latest.waterLevel) : 0) / 100) * 5.0).toFixed(2)} L (
             {(latest?.waterLevel ?? 100) <= 20
-              ? 'Depo seviyesi yetersiz, besleme yapınız'
+              ? 'Depo yetersiz, besleme yapınız'
               : (latest?.waterLevel ?? 100) <= 30
               ? 'Depo seviyesi düşük'
-              : 'Yeterli rezerv mevcut'}
+              : 'Yeterli rezerv'}
+            )
           </div>
         </div>
 
@@ -395,7 +399,7 @@ function App() {
             <span className="metric-unit">L/dk</span>
           </div>
           <div className="metric-subtext" style={{ marginTop: '0.4rem' }}>
-            Nominal debi: 5.00 L/dk — Akış hızı filtre tıkanıklığı ile ters orantılıdır
+            YF-S201 (1/2") Hall-Effect Sensör — Nominal: 5.00 L/dk
           </div>
         </div>
 
@@ -713,7 +717,9 @@ function App() {
           <span>Akıllı Su Filtrasyon ve Erken Uyarı Sistemi</span>
         </div>
         <div>
-          <span>Tekstil ve Bilgisayar Mühendisliği Disiplinlerarası Bitirme Projesi</span>
+          <span>
+            Bilgisayar Müh.: Muzaffer Sarıarslan, Yusuf Kuzey, Ali Muhsin | Tekstil Müh.: Ceylin Değirmenci, Ecenaz Küçükkaya, Sena Kılınç
+          </span>
         </div>
       </footer>
     </div>

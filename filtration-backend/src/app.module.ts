@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
@@ -6,8 +7,7 @@ import { Sensor } from './sensor.entity.js';
 import { SensorGateway } from './sensor.gateway.js';
 
 const databaseUrl =
-  process.env.DATABASE_URL ||
-  'postgresql://neondb_owner:npg_JFfStZ96mUNX@ep-still-hill-b4l02zps-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+  process.env.DATABASE_URL || 'postgresql://localhost:5432/filtration_db';
 
 const isSsl = databaseUrl.includes('sslmode=require') || databaseUrl.includes('neon.tech');
 

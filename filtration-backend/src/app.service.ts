@@ -65,7 +65,7 @@ export class AppService {
     if (filterClogging < 70 && recentRecords.length >= 1) {
       const reference = recentRecords[recentRecords.length - 1];
       const timeDiffSeconds = Math.abs(
-        (new Date(recentRecords[0].recordedAt).getTime() - new Date(reference.recordedAt).getTime()) / 1000,
+        (Date.now() - new Date(reference.recordedAt).getTime()) / 1000,
       );
       const cloggingDiff = Number(filterClogging) - Number(reference.filterClogging);
 

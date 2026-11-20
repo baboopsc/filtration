@@ -13,6 +13,8 @@ export class CreateSensorDataDto {
 
   @IsOptional()
   @IsNumber({}, { message: 'flowRate sayisal bir deger olmalidir' })
+  @Min(0, { message: 'flowRate 0 veya daha buyuk olmalidir' })
+  @Max(30, { message: 'flowRate en fazla 30 L/dk olabilir' })
   flowRate?: number;
 
   @IsOptional()
