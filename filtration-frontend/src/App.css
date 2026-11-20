@@ -311,6 +311,23 @@
   background-color: #f1f5f9;
 }
 
+.btn-danger-outline {
+  background-color: #ffffff;
+  color: #dc2626;
+  border-color: #fca5a5;
+  cursor: pointer;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background-color: #fef2f2;
+  border-color: #ef4444;
+}
+
+.btn-danger-outline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-filter {
   padding: 0.35rem 0.75rem;
   border-radius: 6px;

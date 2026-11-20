@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from '@nestjs/common';
 import { AppService } from './app.service.js';
 import { CreateSensorDataDto } from './dto/create-sensor-data.dto.js';
 
@@ -37,5 +46,10 @@ export class AppController {
   @Get('summary')
   async getSummary() {
     return this.appService.getSystemSummary();
+  }
+
+  @Delete()
+  async clearData() {
+    return this.appService.clearAllSensorData();
   }
 }

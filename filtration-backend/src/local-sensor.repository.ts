@@ -167,4 +167,10 @@ export class LocalSensorRepository {
   async count(options?: FindManyOptions<Sensor>): Promise<number> {
     return this.records.filter((r) => this.matchesWhere(r, options?.where)).length;
   }
+
+  async clear(): Promise<void> {
+    this.records = [];
+    this.nextId = 1;
+    this.persistToDisk();
+  }
 }

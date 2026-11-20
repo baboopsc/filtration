@@ -34,6 +34,10 @@ describe('AppController', () => {
       getSystemSummary: vi.fn().mockResolvedValue({
         counts: { total: 1, critical: 0, warning: 0 },
       }),
+      clearAllSensorData: vi.fn().mockResolvedValue({
+        status: 'cleared',
+        clearedAt: '2026-11-21T00:00:00.000Z',
+      }),
     };
 
     appController = new AppController(mockAppService as AppService);
@@ -64,6 +68,14 @@ describe('AppController', () => {
       expect(res.length).toBe(1);
     });
   });
+
+  describe('clearData', () => {
+    it('should call service clearAllSensorData', async () => {
+      const res = await appController.clearData();
+      expect(res.status).toBe('cleared');
+      expect(mockAppService.clearAllSensorData).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('AppService (Rule Engine & Trend Prediction)', () => {
@@ -77,9 +89,11 @@ describe('AppService (Rule Engine & Trend Prediction)', () => {
       create: vi.fn().mockImplementation((entity) => ({ id: 1, recordedAt: new Date(), ...entity })),
       save: vi.fn().mockImplementation((entity) => Promise.resolve(entity)),
       count: vi.fn().mockResolvedValue(0),
+      clear: vi.fn().mockResolvedValue(undefined),
     };
     mockGateway = {
       broadcastNewData: vi.fn(),
+      broadcastDataCleared: vi.fn(),
     };
     appService = new AppService(mockRepo, mockGateway);
   });
@@ -138,5 +152,12 @@ describe('AppService (Rule Engine & Trend Prediction)', () => {
     expect(res.estimatedMinutesToCritical).not.toBeNull();
     expect(res.estimatedMinutesToCritical).toBeGreaterThanOrEqual(0.8);
     expect(res.estimatedMinutesToCritical).toBeLessThanOrEqual(1.2);
+  });
+
+  it('should clear repository and broadcast verilerTemizlendi on clearAllSensorData', async () => {
+    const res = await appService.clearAllSensorData();
+    expect(res.status).toBe('cleared');
+    expect(mockRepo.clear).toHaveBeenCalledTimes(1);
+    expect(mockGateway.broadcastDataCleared).toHaveBeenCalledTimes(1);
   });
 });

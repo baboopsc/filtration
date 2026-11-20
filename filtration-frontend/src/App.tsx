@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   Gauge,
   TrendingUp,
+  Trash2,
 } from 'lucide-react';
 import './App.css';
 
@@ -52,6 +53,7 @@ function App() {
   const [secondsAgo, setSecondsAgo] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<'ALL' | 'CRITICAL' | 'WARNING'>('ALL');
   const [isLoadingAllFailures, setIsLoadingAllFailures] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const loadInitialData = async () => {
     try {
@@ -66,7 +68,13 @@ function App() {
       setFailures(failuresRes.data);
 
       if (sortedHistory.length > 0) {
-        setLastDataTimestamp(Date.now());
+        const lastRecord = sortedHistory[sortedHistory.length - 1];
+        const ts = new Date(lastRecord.recordedAt).getTime();
+        setLastDataTimestamp(ts);
+        setSecondsAgo(Math.max(0, Math.floor((Date.now() - ts) / 1000)));
+      } else {
+        setLastDataTimestamp(null);
+        setSecondsAgo(null);
       }
     } catch (err) {
       console.error('Backend bağlantı hatası:', err);
@@ -94,6 +102,7 @@ function App() {
     socket.on('yeniSensorVerisi', (yeniVeri: SensorData) => {
       setIsBackendConnected(true);
       setLastDataTimestamp(Date.now());
+      setSecondsAgo(0);
 
       setData((prev) => {
         const next = [...prev, yeniVeri];
@@ -110,6 +119,13 @@ function App() {
       }
     });
 
+    socket.on('verilerTemizlendi', () => {
+      setData([]);
+      setFailures([]);
+      setLastDataTimestamp(null);
+      setSecondsAgo(null);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -118,12 +134,20 @@ function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (lastDataTimestamp) {
-        const diff = Math.floor((Date.now() - lastDataTimestamp) / 1000);
+        const diff = Math.max(0, Math.floor((Date.now() - lastDataTimestamp) / 1000));
         setSecondsAgo(diff);
       }
     }, 1000);
     return () => clearInterval(interval);
   }, [lastDataTimestamp]);
+
+  const formatSecondsAgo = (sec: number | null): string => {
+    if (sec === null) return 'Veri bekleniyor';
+    if (sec <= 1) return 'Şimdi';
+    if (sec < 60) return `${sec} sn önce`;
+    if (sec < 3600) return `${Math.floor(sec / 60)} dk önce`;
+    return `${Math.floor(sec / 3600)} sa önce`;
+  };
 
   const latest = data.length > 0 ? data[data.length - 1] : null;
 
@@ -202,6 +226,27 @@ function App() {
     exportToCsv(filteredFailures, 'Filtrasyon_Goruntulenen_Olaylar');
   };
 
+  const handleClearAllData = async () => {
+    const confirmed = window.confirm(
+      'Veritabanındaki tüm ölçüm ve arıza kayıtları kalıcı olarak silinecektir. Devam etmek istiyor musunuz?',
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsClearing(true);
+      await axios.delete(`${API_BASE_URL}/api/sensor`);
+      setData([]);
+      setFailures([]);
+      setLastDataTimestamp(null);
+      setSecondsAgo(null);
+    } catch (err) {
+      console.error('Veriler temizlenirken hata:', err);
+      alert('Veriler temizlenirken backend bağlantı hatası oluştu.');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <div className="dashboard-container">
       {/* HEADER */}
@@ -238,14 +283,7 @@ function App() {
 
           <div className="status-badge badge-neutral">
             <Clock size={14} />
-            <span>
-              Son Ölçüm:{' '}
-              {secondsAgo !== null
-                ? secondsAgo <= 1
-                  ? 'Şimdi'
-                  : `${secondsAgo} sn önce`
-                : 'Veri bekleniyor'}
-            </span>
+            <span>Son Ölçüm: {formatSecondsAgo(secondsAgo)}</span>
           </div>
 
           <button
@@ -255,6 +293,17 @@ function App() {
             title="Verileri ve bağlantıyı yenile"
           >
             <RefreshCw size={14} />
+          </button>
+
+          <button
+            onClick={handleClearAllData}
+            disabled={isClearing}
+            className="btn btn-danger-outline"
+            style={{ padding: '0.35rem 0.7rem' }}
+            title="Veritabanındaki tüm ölçüm ve arıza kayıtlarını kalıcı olarak sil"
+          >
+            <Trash2 size={14} />
+            <span>{isClearing ? 'Temizleniyor...' : 'Temizle'}</span>
           </button>
         </div>
       </header>
@@ -392,9 +441,11 @@ function App() {
           </div>
           <div className="metric-value-row">
             <span className="metric-number">
-              {latest?.flowRate !== undefined && latest?.flowRate !== null
+              {!latest
+                ? '0.00'
+                : latest.flowRate !== undefined && latest.flowRate !== null
                 ? Number(latest.flowRate).toFixed(2)
-                : Number(Math.max(0.2, 5.0 * (1 - (latest?.filterClogging ?? 0) / 100))).toFixed(2)}
+                : Number(Math.max(0.2, 5.0 * (1 - latest.filterClogging / 100))).toFixed(2)}
             </span>
             <span className="metric-unit">L/dk</span>
           </div>
@@ -476,7 +527,7 @@ function App() {
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <span className="status-badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-              <Cpu size={12} /> Cihaz: {latest?.deviceId || 'SENSOR-01'}
+              <Cpu size={12} /> Cihaz: {latest?.deviceId || 'Bekleniyor'}
             </span>
           </div>
         </div>

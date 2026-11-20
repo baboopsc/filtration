@@ -88,6 +88,7 @@ estimatedMinutesToCritical = (70 - mevcutTıkanıklık) / (saniyedekiArtışHız
 | `GET`  | `/api/sensor?limit=20` | Son ölçümleri listele |
 | `GET`  | `/api/sensor/failures?limit=100` | Yalnızca uyarı ve kritik kayıtları getir |
 | `GET`  | `/api/sensor/summary` | Anlık durum özeti ve sayaçlar |
+| `DELETE` | `/api/sensor` | Tüm ölçüm ve arıza kayıtlarını kalıcı olarak temizle |
 
 ---
 

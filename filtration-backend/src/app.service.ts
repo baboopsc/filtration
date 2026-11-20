@@ -156,4 +156,16 @@ export class AppService {
       serverTime: new Date().toISOString(),
     };
   }
+
+  /**
+   * Tum sensor ve ariza kayitlarini kalici olarak temizler
+   */
+  async clearAllSensorData() {
+    await this.sensorRepository.clear();
+    this.sensorGateway.broadcastDataCleared();
+    return {
+      status: 'cleared',
+      clearedAt: new Date().toISOString(),
+    };
+  }
 }

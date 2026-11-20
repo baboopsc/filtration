@@ -14,4 +14,11 @@ export class SensorGateway {
   broadcastNewData(data: any) {
     this.server.emit('yeniSensorVerisi', data);
   }
+
+  // Tum veriler temizlendiginde bagli tum panellere bildirim gonder
+  broadcastDataCleared() {
+    this.server.emit('verilerTemizlendi', {
+      clearedAt: new Date().toISOString(),
+    });
+  }
 }
